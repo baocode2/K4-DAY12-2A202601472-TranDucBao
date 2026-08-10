@@ -10,17 +10,17 @@
 
 | Mục | Nội dung |
 |-----|----------|
-| Họ và tên | (điền họ tên) |
-| Mã học viên | (điền mã học viên) |
-| Repo | (điền link repo K4-DAY12-...) |
+| Họ và tên | Trần Đức Bảo |
+| Mã học viên | 2A202601472 |
+| Repo | https://github.com/baocode2/K4-DAY12-2A202601472-TranDucBao |
 
 ## Service
 
 | Mục | Nội dung |
 |-----|----------|
-| Public URL | https://TODO-thay-bang-url-that.up.railway.app |
-| Platform | Railway / Render / Cloud Run — (điền platform bạn dùng) |
-| Ngày deploy | (điền ngày) |
+| Public URL | Không có — dùng phương án dự phòng, service chạy ở `http://localhost:8000` |
+| Platform | Phương án dự phòng: Docker Compose ở máy (không dùng Railway / Render / Cloud Run) |
+| Ngày deploy | 2026-08-10 |
 
 ## Biến Môi Trường Đã Set Trên Cloud
 
@@ -28,9 +28,9 @@ Ghi tên biến và **nguồn giá trị**, không ghi giá trị:
 
 | Biến | Đã set | Ghi chú |
 |------|--------|---------|
-| `PORT` | ✅ | platform tự gán |
-| `API_TOKEN` | ✅ | đặt trong dashboard, không nằm trong repo |
-| `REDIS_URL` | ✅ | (điền: Redis add-on của platform / Upstash / ...) |
+| `PORT` | ✅ | mặc định 8000; Dockerfile đọc `${PORT:-8000}` nên platform gán cổng nào cũng chạy |
+| `API_TOKEN` | ✅ | nội suy `${API_TOKEN}` từ file `.env` ở máy, không nằm trong repo |
+| `REDIS_URL` | ✅ | `redis://redis:6379/0` — service `redis` trong docker-compose |
 | `BUCKET_CAPACITY` | ✅ | 10 |
 | `REFILL_PER_MINUTE` | ✅ | 10 |
 | `DAILY_BUDGET_USD` | ✅ | 1.0 |
@@ -71,18 +71,63 @@ done; echo
 
 ## Kết Quả Chạy Thật
 
-Dán output của các lệnh trên vào đây:
+Chạy ngày 2026-08-10, `<URL>` = `http://localhost:8000`:
 
 ```
-(điền output)
+$ docker compose ps
+NAME                                      IMAGE                                  SERVICE   STATUS                  PORTS
+k4-day12-2a202601472-tranducbao-chat-1    k4-day12-2a202601472-tranducbao-chat   chat      Up 9 seconds (healthy)  0.0.0.0:8000->8000/tcp
+k4-day12-2a202601472-tranducbao-redis-1   redis:7-alpine                         redis     Up 9 seconds (healthy)  0.0.0.0:6379->6379/tcp
+
+# 1. Liveness
+$ curl -i http://localhost:8000/healthz
+HTTP/1.1 200 OK
+server: uvicorn
+content-type: application/json
+
+{"status":"ok","service":"day12-chat-service","version":"1.0.0"}
+
+# 2. Readiness — redis:true nghĩa là đã nối được Redis
+$ curl -i http://localhost:8000/readyz
+HTTP/1.1 200 OK
+server: uvicorn
+content-type: application/json
+
+{"status":"ready","redis":true}
+
+# 3. Không có token
+$ curl -i -X POST http://localhost:8000/chat -H "Content-Type: application/json" -d '{"message":"Hello"}'
+HTTP/1.1 401 Unauthorized
+server: uvicorn
+www-authenticate: Bearer
+content-type: application/json
+
+{"detail":"invalid or missing bearer token"}
+
+# 4. Có token
+$ curl -i -X POST http://localhost:8000/chat \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $API_TOKEN" \
+    -H "X-Client-Id: sv-demo" \
+    -d '{"message":"Deploy là gì?"}'
+HTTP/1.1 200 OK
+server: uvicorn
+content-type: application/json
+
+{"reply":"Ngắn gọn: Deploy la gi phụ thuộc vào ba yếu tố — cấu hình qua biến môi trường, health check để orchestrator biết trạng thái, và giới hạn tài nguyên.","client_id":"sv-demo","turns_before":0,"usd_cost":2.265e-05,"usage":{"prompt":3,"completion":37}}
+
+# 5. Rate limit — 10 request đầu qua (xô đầy 10 token), 5 request sau bị chặn
+$ for i in $(seq 1 15); do ... done
+200 200 200 200 200 200 200 200 200 200 429 429 429 429 429
 ```
 
 ## Ảnh Chụp Màn Hình
 
 Đặt ảnh trong thư mục `screenshots/`:
 
-- `screenshots/dashboard.png` — trang quản lý service trên platform
-- `screenshots/healthz.png` — kết quả gọi `/healthz` từ trình duyệt hoặc curl
+- `screenshots/dashboard.png` — trạng thái stack (`docker compose ps`), thay cho
+  dashboard của platform vì đang dùng phương án dự phòng
+- `screenshots/healthz.png` — kết quả gọi `/healthz` và `/readyz`
 
 ---
 
@@ -98,5 +143,12 @@ Không đăng ký được tài khoản cloud? Vẫn nộp được bài, nhưng
 5. Ghi rõ lý do không deploy được vào phần dưới đây:
 
 ```
-(điền lý do nếu dùng phương án dự phòng, ngược lại xóa mục này)
+Lý do dùng phương án dự phòng: chưa có tài khoản Railway/Render (đăng ký cần
+thẻ thanh toán), nên chưa deploy được lên cloud trong thời gian buổi lab.
+
+Thay vào đó toàn bộ stack chạy bằng Docker Compose ở máy: image build từ chính
+Dockerfile multi-stage của CP2, service `chat` chạy user thường và đọc `$PORT`,
+Redis là một service riêng — nghĩa là đúng cùng một image và cùng một cấu hình
+sẽ chạy được trên cloud, chỉ khác biến môi trường. Đã đặt LOCAL_FALLBACK=true
+và chụp màn hình vào screenshots/.
 ```
