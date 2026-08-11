@@ -18,9 +18,9 @@
 
 | Mục | Nội dung |
 |-----|----------|
-| Public URL | Không có — dùng phương án dự phòng, service chạy ở `http://localhost:8000` |
-| Platform | Phương án dự phòng: Docker Compose ở máy (không dùng Railway / Render / Cloud Run) |
-| Ngày deploy | 2026-08-10 |
+| Public URL | https://day12-chat-v8cd.onrender.com/ |
+| Platform | Render |
+| Ngày deploy | 2026-08-11 |
 
 ## Biến Môi Trường Đã Set Trên Cloud
 
